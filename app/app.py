@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 app.config['MODEL_FILE'] = 'model/uv_model_tf.h5'
 app.config['SCALER_FILE'] = 'model/scaler.pkl'
-app.config['LABELS_FILE'] = 'model/uv_index.txt'
+app.config['LABELS_FILE'] = 'uv_index.txt'
 
 try:
     model = load_model(app.config['MODEL_FILE'], compile=False)
