@@ -1,23 +1,13 @@
-FROM python:3.10-slim AS deps
+FROM python:3.10-slim
 
-ENV PYTHONBUFFERED=1
+ENV PYTHONBUFFERED True
 
-WORKDIR /app
+ENV APP_HOME /app
 
-COPY requirements.txt ./
+WORKDIR $APP_HOME
 
-RUN pip install --no-cache-dir -r requirements.txt
+COPY . ./
 
-FROM python:3.10-slim AS runner
+RUN pip install -r requirements.txt
 
-WORKDIR /app
-
-COPY --from=deps /app /app
-
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
-ENV PORT=8080
-
-EXPOSE 8080
-
-CMD ["flask", "run", "--host=0.0.0.0", "--port=8080"]
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
