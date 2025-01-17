@@ -16,8 +16,8 @@ COPY --from=deps /app /app
 
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
-ENV PORT=5000
+ENV PORT=8080
 
-EXPOSE 5000
+EXPOSE 8080
 
-CMD ["python", "app.py"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=8080"]
