@@ -8,6 +8,13 @@ WORKDIR $APP_HOME
 
 COPY . ./
 
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=production
+ENV PORT=8080
+
+EXPOSE 8080
+
+
 RUN pip install -r requirements.txt
 
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
