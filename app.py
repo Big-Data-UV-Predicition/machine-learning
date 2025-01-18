@@ -2,6 +2,7 @@ import os
 import joblib
 import numpy as np
 from flask import Flask, jsonify, request
+from tensorflow as tf
 from tensorflow.keras.models import load_model
 from sklearn.preprocessing import StandardScaler
 
