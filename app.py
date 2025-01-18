@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import numpy as np
@@ -7,6 +8,18 @@ import joblib
 
 # Inisialisasi aplikasi FastAPI
 app = FastAPI()
+
+origins = ["https://bi-fe.cangcimen.my.id"] 
+methods = ["GET", "POST"]
+headers = ["Content-Type"] 
+
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins = origins,
+    allow_credentials = False,
+    allow_methods = methods,
+    allow_headers = headers    
+)
 
 # Load model dan scaler
 try:
