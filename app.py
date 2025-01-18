@@ -231,3 +231,7 @@ def get_status():
 @app.get("/")
 def read_root():
     return {"message": "Welcome to UV Index Prediction API!"}
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
