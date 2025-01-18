@@ -9,31 +9,37 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
+# Paths to model and scaler
 MODEL_PATH = 'model/uv_model_tf.h5'
 SCALER_PATH = 'model/scaler.pkl'
 UV_INDEX_FILE = 'uv_indeks.txt'
 
+# Ensure required files exist
 if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH):
     raise FileNotFoundError("Model or scaler file not found. Ensure the training script has been run.")
 
+# Load model and scaler
 model = tf.keras.models.load_model(MODEL_PATH)
 scaler = joblib.load(SCALER_PATH)
 
+# Load UV categories
 with open(UV_INDEX_FILE, 'r') as f:
     uv_categories = [line.strip() for line in f.readlines()]
 
+# Helper function to categorize UV index
 def categorize_uv_index(uv_index):
     if uv_index <= 2:
-        return uv_categories[0] 
+        return uv_categories[0]  # Low
     elif uv_index <= 5:
-        return uv_categories[2] 
+        return uv_categories[2]  # Moderate
     elif uv_index <= 7:
-        return uv_categories[5] 
+        return uv_categories[5]  # High
     elif uv_index <= 10:
-        return uv_categories[8] 
+        return uv_categories[8]  # Very High
     else:
-        return uv_categories[10] 
+        return uv_categories[10]  # Extreme
 
+# Fetch weather forecast data
 def fetch_forecast_data(api_key, city):
     url = "http://api.worldweatheronline.com/premium/v1/weather.ashx"
     params = {
@@ -50,6 +56,7 @@ def fetch_forecast_data(api_key, city):
     else:
         raise Exception(f"Error fetching forecast data: {response.status_code}, {response.text}")
 
+# Process forecast data to DataFrame
 def process_forecast_to_df(data):
     rows = []
     for day in data['data']['weather']:
@@ -71,6 +78,7 @@ def process_forecast_to_df(data):
 
     return pd.DataFrame(rows)
 
+# Prepare features for model prediction
 def prepare_features(df):
     df['date'] = pd.to_datetime(df['date'])
     df['hour'] = df['time'].astype(int) // 100
@@ -116,7 +124,6 @@ def index():
 @app.route('/predict', methods=['POST'])
 def predict_realtime():
     try:
-
         data = request.get_json()
         api_key = data.get('api_key')
         city = data.get('city')
@@ -130,7 +137,6 @@ def predict_realtime():
         X = prepare_features(df)
 
         X_scaled = scaler.transform(X)
-
         predictions = model.predict(X_scaled).flatten()
 
         df['predicted_uvIndex'] = predictions
