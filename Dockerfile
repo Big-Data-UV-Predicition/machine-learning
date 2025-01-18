@@ -1,18 +1,16 @@
-FROM python:3.8-slim
+FROM python:3.10-slim
 
-ENV PYTHONBUFFERED True
+ENV PYTHONBUFFERED=1 \
+    APP_HOME=/app \
+    PORT=8000
 
-COPY . /app
+WORKDIR ${APP_HOME}
 
-WORKDIR /app
+COPY requirements.txt .
 
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
+RUN pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache/pip
 
-RUN pip install -r requirements.txt
+COPY . .
 
-EXPOSE 8080
-
-ENV PORT=8080
-
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "8", "--timeout", "0", "app:app"]
