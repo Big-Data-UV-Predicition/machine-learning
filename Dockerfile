@@ -1,19 +1,19 @@
-FROM python:3.10-slim
+# start by pulling the python image
+FROM python:3.8-alpine
 
-ENV PYTHONBUFFERED True
+# copy the requirements file into the image
+COPY ./requirements.txt /app/requirements.txt
 
-ENV APP_HOME /app
+# switch working directory
+WORKDIR /app
 
-WORKDIR $APP_HOME
-
-COPY . ./
-
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
-ENV PORT=8080
-
+# install the dependencies and packages in the requirements file
 RUN pip install -r requirements.txt
 
-EXPOSE 8080
+# copy every content from the local file to the image
+COPY . /app
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
+# configure the container to run in an executed manner
+ENTRYPOINT [ "python" ]
+
+CMD ["view.py" ]
