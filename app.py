@@ -156,4 +156,8 @@ def get_status():
 # Endpoint root
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to UV Index Prediction API!"}
+    return {"message": "Welcome to UV Index Prediction API!",
+            "documentation": "Visit /docs to see the documentation."
+            "project": "UV Index Prediction",
+            "team": "Cangcing Team"
+            }
