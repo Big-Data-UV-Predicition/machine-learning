@@ -20,7 +20,7 @@ if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH) or not os.p
 
 # Load model and scaler
 try:
-    model = tf.keras.models.load_model(MODEL_PATH)
+    model = tf.keras.models.load_model(MODEL_PATH, custom_objects=None)  # Added custom_objects=None
 except Exception as e:
     raise RuntimeError(f"Error loading model: {e}")
 
