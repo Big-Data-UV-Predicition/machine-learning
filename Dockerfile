@@ -2,15 +2,23 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY . /app
+COPY requirements.txt .
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    libpq-dev && \
-    pip install --no-cache-dir -r requirements.txt && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    libpq-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+    && apt-get remove -y gcc \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-EXPOSE 5000
+COPY . .
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+
+RUN mkdir -p model
+
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

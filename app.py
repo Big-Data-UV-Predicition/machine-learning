@@ -27,10 +27,21 @@ app.add_middleware(
     allow_headers=headers,
 )
 
+CITY_COORDINATES = {
+    "Bogor": {"lat": -6.5962986, "lon": 106.7972421},
+    "Kabupaten Bogor": {"lat": -6.5453255, "lon": 107.0017425},
+    "Depok": {"lat": -6.40719, "lon": 106.8158371},
+    "Tangerang": {"lat": -6.1761924, "lon": 106.6382161},
+    "Tangerang Selatan": {"lat": -6.3227016, "lon": 106.7085737},
+    "Bekasi": {"lat": -6.2349858, "lon": 106.9945444},
+    "Jakarta": {"lat": -6.2838182, "lon": 106.8048633},
+    "Kabupaten Bekasi": {"lat": -6.2027897, "lon": 107.1649161}
+}
+
 # Load model dan scaler
 try:
-    model = tf.keras.models.load_model("uv_index_prediction_model_final.h5")
-    scaler = joblib.load("scaler.pkl")
+    model = tf.keras.models.load_model("model/uv_imam2.h5")
+    scaler = joblib.load("model/scaler.pkl")
     logger.info("Model dan scaler berhasil dimuat.")
 except Exception as e:
     logger.error(f"Error loading model or scaler: {e}")
@@ -38,78 +49,104 @@ except Exception as e:
 
 # Schema untuk input API
 class UVIndexRequest(BaseModel):
-    city_name: str
-    lat: float
-    lon: float
+    city: str
     date: str
+
+    @validator("city")
+    def validate_city(cls, value):
+        if value not in CITY_COORDINATES:
+            raise ValueError(f"Kota tidak valid. Kota yang tersedia: {', '.join(CITY_COORDINATES.keys())}")
+        return value
 
     @validator("date")
     def validate_date(cls, value):
         try:
-            datetime.strptime(value, "%Y-%m-%d")
+            date_obj = datetime.strptime(value, "%Y-%m-%d")
+            # Tambahan validasi untuk memastikan tanggal tidak di masa lalu
+            if date_obj.date() < datetime.now().date():
+                raise ValueError("Tanggal tidak boleh di masa lalu")
             return value
-        except ValueError:
-            raise ValueError("Date must be in the format YYYY-MM-DD")
+        except ValueError as e:
+            raise ValueError("Format tanggal harus YYYY-MM-DD")
 
-# Fungsi preprocessing
-def preprocess_input(lat, lon, date):
+# Fungsi preprocessing yang lebih robust
+def preprocess_input(city: str, date: str):
     try:
-        # Konversi tanggal ke fitur temporal
+        # Ambil koordinat dari dictionary
+        coords = CITY_COORDINATES[city]
+        lat, lon = coords["lat"], coords["lon"]
+
+        # Konversi tanggal
         date_obj = datetime.strptime(date, "%Y-%m-%d")
         day_of_year = date_obj.timetuple().tm_yday
         month = date_obj.month
-        weekday = date_obj.weekday()  # Monday=0, Sunday=6
+        weekday = date_obj.weekday()
 
-        # Nilai default untuk cuaca (hanya gunakan jumlah yang dibutuhkan)
-        # Jika model hanya membutuhkan 10 fitur, gunakan fitur berikut:
-        default_weather = [25.0, 70.0, 50.0, 0.0, 1013.25]  # Contoh data default cuaca
+        # Default weather features (sesuaikan dengan model training)
+        default_weather = [
+            25.0,  # tempC
+            70.0,  # humidity
+            50.0,  # cloudcover
+            0.0,   # precipMM
+            1013.25  # pressure
+        ]
 
-        # Pilih hanya 5 fitur cuaca yang diperlukan
-        selected_weather_features = default_weather[:5]  # Pilih sesuai kebutuhan model
+        # Gabungkan semua fitur
+        input_features = np.array([[
+            lat, lon, 
+            day_of_year, month, weekday,
+            *default_weather
+        ]])
 
-        # Gabungkan semua fitur menjadi satu array
-        input_data = np.array([[lat, lon, day_of_year, month, weekday, *selected_weather_features]])
+        # Normalisasi menggunakan scaler yang sama dengan training
+        input_scaled = scaler.transform(input_features)
+        
+        return input_scaled
 
-        # Pastikan array memiliki 10 fitur (sesuaikan dengan input model)
-        if input_data.shape[1] != 10:
-            raise ValueError(f"Expected 10 features, but got {input_data.shape[1]}.")
-
-        # Normalisasi input data
-        input_scaled = scaler.transform(input_data)
-
-        return input_scaled  # Pastikan input_scaled memiliki 10 fitur
     except Exception as e:
-        raise ValueError(f"Error preprocessing input: {e}")
+        raise ValueError(f"Error dalam preprocessing: {str(e)}")
 
 # Endpoint prediksi UV Index
 @app.post("/predict")
-def predict_uv_index(request: UVIndexRequest):
+async def predict_uv_index(request: UVIndexRequest):
     try:
         # Preprocess input
-        input_scaled = preprocess_input(request.lat, request.lon, request.date)
-
-        # Validasi bentuk input (harus memiliki 10 fitur)
-        if input_scaled.shape[1] != 10:
-            raise ValueError(f"Input shape mismatch. Expected 10 features, got {input_scaled.shape[1]}.")
-
-        # Prediksi UV Index
+        input_scaled = preprocess_input(request.city, request.date)
+        
+        # Prediksi
         prediction = model.predict(input_scaled)
         uv_index = float(prediction[0][0])
 
+        # Format response
         return {
-            "city_name": request.city_name,
-            "latitude": request.lat,
-            "longitude": request.lon,
-            "date": request.date,
-            "predicted_uv_index": round(uv_index, 2),
+            "status": "success",
+            "data": {
+                "city": request.city,
+                "coordinates": CITY_COORDINATES[request.city],
+                "date": request.date,
+                "predicted_uv_index": round(uv_index, 2),
+                "uv_risk_level": get_uv_risk_level(uv_index)
+            }
         }
 
     except ValueError as ve:
-        logger.error(f"Value error: {ve}")
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.error(f"Internal server error: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+        logger.error(f"Error dalam prediksi: {str(e)}")
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server")
+
+# Fungsi helper untuk menentukan tingkat risiko UV
+def get_uv_risk_level(uv_index: float) -> str:
+    if uv_index <= 2:
+        return "Rendah"
+    elif uv_index <= 5:
+        return "Sedang"
+    elif uv_index <= 7:
+        return "Tinggi"
+    elif uv_index <= 10:
+        return "Sangat Tinggi"
+    else:
+        return "Ekstrim"
 
 # Endpoint status
 @app.get("/status")
