@@ -12,3 +12,6 @@ __pycache__/
 *.tmp
 *.bak
 *.backup
+*.csv
+*.json
+!data/*.json
