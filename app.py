@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
-# Path to model, scaler, and UV categories
 MODEL_PATH = 'model/uv_model_tf.h5'
 SCALER_PATH = 'model/scaler.pkl'
 UV_INDEX_FILE = 'uv_indeks.txt'
@@ -91,7 +90,30 @@ def prepare_features(df):
     ]
     return df[features]
 
-@app.route('/predict-realtime', methods=['POST'])
+@app.route("/")
+def index():
+    return jsonify({
+        "status": {
+            "code": 200,
+            "message": "Weather Prediction API is working.",
+        },
+        "data": {
+            'Project_Name': 'UV Index Prediction',
+            'Team': 'Cangcimen',
+            'Anggota': [
+                {'NPM': '065121068', 'Nama': 'Sandy Budi Wirawan', 'Universitas': 'Pakuan'},
+                {'NPM': '065121083', 'Nama': 'Saidina Hikam', 'Universitas': 'Pakuan'},
+                {'NPM': '065121076', 'Nama': 'M.Athar Kautsar', 'Universitas': 'Pakuan'},
+                {'NPM': '065121077', 'Nama': 'M.Imam Fahrudin', 'Universitas': 'Pakuan'},
+                {'NPM': '065121085', 'Nama': 'M.Leon Fadilah', 'Universitas': 'Pakuan'},
+                {'NPM': '065121111', 'Nama': 'Eri Mustika Alam', 'Universitas': 'Pakuan'},
+            ],
+            'Created_By': 'Cangcimen Team',
+            'CopyRight': '@2025 All Rights Reserved!'
+        }
+    }), 200
+
+@app.route('/predict', methods=['POST'])
 def predict_realtime():
     try:
 
