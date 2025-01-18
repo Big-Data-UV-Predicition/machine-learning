@@ -1,10 +1,10 @@
-FROM python:3.9
+FROM python:3.8-slim
 
 ENV PYTHONBUFFERED True
 
-WORKDIR /app
+COPY . /app
 
-COPY . ./
+WORKDIR /app
 
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
