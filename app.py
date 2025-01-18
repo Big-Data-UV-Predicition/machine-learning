@@ -15,29 +15,39 @@ SCALER_PATH = 'model/scaler.pkl'
 UV_INDEX_FILE = 'uv_indeks.txt'
 
 # Ensure required files exist
-if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH):
-    raise FileNotFoundError("Model or scaler file not found. Ensure the training script has been run.")
+if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH) or not os.path.exists(UV_INDEX_FILE):
+    raise FileNotFoundError("Model, scaler, or UV index file not found. Ensure the training script has been run.")
 
 # Load model and scaler
-model = tf.keras.models.load_model(MODEL_PATH)
-scaler = joblib.load(SCALER_PATH)
+try:
+    model = tf.keras.models.load_model(MODEL_PATH)
+except Exception as e:
+    raise RuntimeError(f"Error loading model: {e}")
+
+try:
+    scaler = joblib.load(SCALER_PATH)
+except Exception as e:
+    raise RuntimeError(f"Error loading scaler: {e}")
 
 # Load UV categories
-with open(UV_INDEX_FILE, 'r') as f:
-    uv_categories = [line.strip() for line in f.readlines()]
+try:
+    with open(UV_INDEX_FILE, 'r') as f:
+        uv_categories = [line.strip() for line in f.readlines()]
+except Exception as e:
+    raise RuntimeError(f"Error loading UV categories: {e}")
 
 # Helper function to categorize UV index
 def categorize_uv_index(uv_index):
     if uv_index <= 2:
         return uv_categories[0]  # Low
     elif uv_index <= 5:
-        return uv_categories[2]  # Moderate
+        return uv_categories[1]  # Moderate
     elif uv_index <= 7:
-        return uv_categories[5]  # High
+        return uv_categories[2]  # High
     elif uv_index <= 10:
-        return uv_categories[8]  # Very High
+        return uv_categories[3]  # Very High
     else:
-        return uv_categories[10]  # Extreme
+        return uv_categories[4]  # Extreme
 
 # Fetch weather forecast data
 def fetch_forecast_data(api_key, city):
@@ -50,11 +60,12 @@ def fetch_forecast_data(api_key, city):
         'tp': 24
     }
 
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
         return response.json()
-    else:
-        raise Exception(f"Error fetching forecast data: {response.status_code}, {response.text}")
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Error fetching forecast data: {str(e)}")
 
 # Process forecast data to DataFrame
 def process_forecast_to_df(data):
@@ -131,22 +142,33 @@ def predict_realtime():
         if not api_key or not city:
             return jsonify({'status': 'error', 'message': 'API key and city are required.'}), 400
 
+        # Fetch weather forecast data
         forecast_data = fetch_forecast_data(api_key, city)
 
+        # Process forecast data into a DataFrame
         df = process_forecast_to_df(forecast_data)
+        
+        # Prepare features for model prediction
         X = prepare_features(df)
 
+        # Scale the features using the loaded scaler
         X_scaled = scaler.transform(X)
+        
+        # Make predictions
         predictions = model.predict(X_scaled).flatten()
 
+        # Store predictions and categorize UV index
         df['predicted_uvIndex'] = predictions
         df['uv_category'] = df['predicted_uvIndex'].apply(categorize_uv_index)
 
+        # Filter data to only include future predictions
         now = datetime.utcnow()
         df['datetime'] = pd.to_datetime(df['date']) + pd.to_timedelta(df['hour'], unit='h')
         df = df[df['datetime'] >= now]
 
+        # Format the result for output
         result = df[['datetime', 'predicted_uvIndex', 'uv_category']].to_dict(orient='records')
+        
         return jsonify({'status': 'success', 'predictions': result})
 
     except Exception as e:
