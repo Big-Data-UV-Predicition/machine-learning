@@ -158,6 +158,6 @@ def get_status():
 def read_root():
     return {"message": "Welcome to UV Index Prediction API!",
             "documentation": "Visit /docs to see the documentation."
-            "project": "UV Index Prediction",
+            "project": "UV Index Prediction API",
             "team": "Cangcing Team"
             }
