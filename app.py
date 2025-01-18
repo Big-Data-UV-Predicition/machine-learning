@@ -1,113 +1,41 @@
-from flask import Flask, request, jsonify
-import requests
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-import joblib
 import os
-from datetime import datetime, timedelta
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import joblib
+import numpy as np
+from flask import Flask, jsonify, request
+import tensorflow as tf
+from keras.models import load_model
+from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
 
-# Paths to model and scaler
-MODEL_PATH = 'model/uv_model_tf.h5'
-SCALER_PATH = 'model/scaler.pkl'
-UV_INDEX_FILE = 'uv_indeks.txt'
+app.config['MODEL_FILE'] = 'model/uv_model_tf.h5'
+app.config['SCALER_FILE'] = 'model/scaler.pkl'
+app.config['LABELS_FILE'] = 'uv_indeks.txt'
 
-# Ensure required files exist
-if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH) or not os.path.exists(UV_INDEX_FILE):
-    raise FileNotFoundError("Model, scaler, or UV index file not found. Ensure the training script has been run.")
-
-# Load model and scaler
-try:
-    model = tf.keras.models.load_model(MODEL_PATH, custom_objects=None)  # Added custom_objects=None
-except Exception as e:
-    raise RuntimeError(f"Error loading model: {e}")
+model = load_model(app.config['MODEL_FILE'], compile=False)
+with open(app.config['LABELS_FILE'], 'r') as file:
+    labels = file.read().splitlines()
 
 try:
-    scaler = joblib.load(SCALER_PATH)
+    scaler = joblib.load(app.config['SCALER_FILE'])
 except Exception as e:
-    raise RuntimeError(f"Error loading scaler: {e}")
+    raise RuntimeError(f"Failed to load scaler: {e}")
 
-# Load UV categories
 try:
-    with open(UV_INDEX_FILE, 'r') as f:
-        uv_categories = [line.strip() for line in f.readlines()]
+    with open(app.config['LABELS_FILE'], 'r') as file:
+        labels = file.read().splitlines()
 except Exception as e:
-    raise RuntimeError(f"Error loading UV categories: {e}")
+    raise RuntimeError(f"Failed to load labels: {e}")
 
-# Helper function to categorize UV index
-def categorize_uv_index(uv_index):
-    if uv_index <= 2:
-        return uv_categories[0]  # Low
-    elif uv_index <= 5:
-        return uv_categories[1]  # Moderate
-    elif uv_index <= 7:
-        return uv_categories[2]  # High
-    elif uv_index <= 10:
-        return uv_categories[3]  # Very High
-    else:
-        return uv_categories[4]  # Extreme
-
-# Fetch weather forecast data
-def fetch_forecast_data(api_key, city):
-    url = "http://api.worldweatheronline.com/premium/v1/weather.ashx"
-    params = {
-        'key': api_key,
-        'q': city,
-        'format': 'json',
-        'num_of_days': 3,
-        'tp': 24
-    }
-
+def predict_uv_index(features):
     try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Error fetching forecast data: {str(e)}")
-
-# Process forecast data to DataFrame
-def process_forecast_to_df(data):
-    rows = []
-    for day in data['data']['weather']:
-        date = day['date']
-        for hour in day['hourly']:
-            row = {
-                'date': date,
-                'time': hour['time'],
-                'tempC': float(hour['tempC']),
-                'windspeedKmph': float(hour['windspeedKmph']),
-                'humidity': float(hour['humidity']),
-                'cloudcover': float(hour['cloudcover']),
-                'precipMM': float(hour['precipMM']),
-                'pressure': float(hour['pressure']),
-                'visibility': float(hour['visibility']),
-                'FeelsLikeC': float(hour['FeelsLikeC']),
-            }
-            rows.append(row)
-
-    return pd.DataFrame(rows)
-
-# Prepare features for model prediction
-def prepare_features(df):
-    df['date'] = pd.to_datetime(df['date'])
-    df['hour'] = df['time'].astype(int) // 100
-
-    df['month'] = df['date'].dt.month
-    df['day'] = df['date'].dt.day
-    df['day_of_week'] = df['date'].dt.dayofweek
-    df['is_daylight'] = ((df['hour'] >= 6) & (df['hour'] <= 18)).astype(int)
-    df['daylight_hours'] = 12
-
-    features = [
-        'month', 'day', 'day_of_week', 'hour',
-        'tempC', 'windspeedKmph', 'humidity',
-        'cloudcover', 'precipMM', 'pressure',
-        'visibility', 'FeelsLikeC', 'is_daylight',
-        'daylight_hours'
-    ]
-    return df[features]
+        features_scaled = scaler.transform(features)
+        prediction = model.predict(features_scaled)
+        predicted_index = int(np.clip(prediction[0], 0, len(labels) - 1))
+        return predicted_index
+    except Exception as e:
+        raise ValueError(f"Prediction error: {e}")
 
 @app.route("/")
 def index():
@@ -132,47 +60,69 @@ def index():
         }
     }), 200
 
-@app.route('/predict', methods=['POST'])
-def predict_realtime():
-    try:
-        data = request.get_json()
-        api_key = data.get('api_key')
-        city = data.get('city')
+@app.route("/prediction", methods=["GET", "POST"])
+def prediction():
 
-        if not api_key or not city:
-            return jsonify({'status': 'error', 'message': 'API key and city are required.'}), 400
+    if request.method == "GET":
+        return jsonify({
+            "status": {
+                "code": 200,
+                "message": "Test Successful. Use POST method to make predictions."
+            },
+            "data": {
+                "description": "To predict UV Index, use POST method with 'features' data."
+            }
+        }), 200
 
-        # Fetch weather forecast data
-        forecast_data = fetch_forecast_data(api_key, city)
+    elif request.method == "POST":
+        try:
+            data = request.get_json()
 
-        # Process forecast data into a DataFrame
-        df = process_forecast_to_df(forecast_data)
-        
-        # Prepare features for model prediction
-        X = prepare_features(df)
+            if not data or 'features' not in data:
+                return jsonify({
+                    "status": {
+                        "code": 400,
+                        "message": "'features' not found in the request data"
+                    },
+                    "data": None
+                }), 400
 
-        # Scale the features using the loaded scaler
-        X_scaled = scaler.transform(X)
-        
-        # Make predictions
-        predictions = model.predict(X_scaled).flatten()
+            features = data['features']
 
-        # Store predictions and categorize UV index
-        df['predicted_uvIndex'] = predictions
-        df['uv_category'] = df['predicted_uvIndex'].apply(categorize_uv_index)
+            if not isinstance(features, list) or not all(isinstance(x, (int, float)) for x in features):
+                return jsonify({
+                    "status": {
+                        "code": 400,
+                        "message": "'features' must be a list of numerical values."
+                    },
+                    "data": None
+                }), 400
 
-        # Filter data to only include future predictions
-        now = datetime.utcnow()
-        df['datetime'] = pd.to_datetime(df['date']) + pd.to_timedelta(df['hour'], unit='h')
-        df = df[df['datetime'] >= now]
+            features_array = np.array(features).reshape(1, -1)
 
-        # Format the result for output
-        result = df[['datetime', 'predicted_uvIndex', 'uv_category']].to_dict(orient='records')
-        
-        return jsonify({'status': 'success', 'predictions': result})
+            predicted_index = predict_uv_index(features_array)
 
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+            uv_category = labels[predicted_index]
+
+            return jsonify({
+                "status": {
+                    "code": 200,
+                    "message": "Success Predicting UV Index",
+                },
+                "data": {
+                    "uv_index": predicted_index,
+                    "uv_category": uv_category
+                }
+            }), 200
+
+        except Exception as e:
+            return jsonify({
+                "status": {
+                    "code": 400,
+                    "message": f"Error: {str(e)}",
+                },
+                "data": None,
+            }), 400
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=8080)
+   app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
