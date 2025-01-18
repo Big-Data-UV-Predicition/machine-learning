@@ -9,7 +9,7 @@ import joblib
 # Inisialisasi aplikasi FastAPI
 app = FastAPI()
 
-origins = ["https://bi-fe.cangcimen.my.id"] 
+origins = ["*"] 
 methods = ["GET", "POST"]
 headers = ["Content-Type"] 
 
