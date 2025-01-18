@@ -1,19 +1,24 @@
-# start by pulling the python image
-FROM python:3.8-alpine
+FROM python:3.10-slim AS deps
 
-# copy the requirements file into the image
-COPY ./requirements.txt /app/requirements.txt
+ENV PYTHONBUFFERED=1
 
-# switch working directory
 WORKDIR /app
 
-# install the dependencies and packages in the requirements file
-RUN pip install -r requirements.txt
+COPY requirements.txt ./
 
-# copy every content from the local file to the image
-COPY . /app
+RUN pip install --no-cache-dir -r requirements.txt
 
-# configure the container to run in an executed manner
-ENTRYPOINT [ "python" ]
+FROM python:3.10-slim AS runner
 
-CMD ["view.py" ]
+WORKDIR /app
+
+COPY --from=deps /app /app
+
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=production
+ENV PORT=8080
+
+EXPOSE 8080
+
+
+CMD ["python", "app.py"]
