@@ -2,8 +2,8 @@ import os
 import joblib
 import numpy as np
 from flask import Flask, jsonify, request
-from tensorflow as tf
-from tensorflow.keras.models import load_model
+import tensorflow as tf
+from keras.models import load_model
 from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
@@ -12,10 +12,9 @@ app.config['MODEL_FILE'] = 'model/uv_model_tf.h5'
 app.config['SCALER_FILE'] = 'model/scaler.pkl'
 app.config['LABELS_FILE'] = 'uv_indeks.txt'
 
-try:
-    model = load_model(app.config['MODEL_FILE'], compile=False)
-except Exception as e:
-    raise RuntimeError(f"Failed to load model: {e}")
+model = load_model(app.config['MODEL_FILE'], compile=False)
+with open(app.config['LABELS_FILE'], 'r') as file:
+    labels = file.read().splitlines()
 
 try:
     scaler = joblib.load(app.config['SCALER_FILE'])
