@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import tensorflow as tf
 import joblib
@@ -69,6 +69,27 @@ class UVIndexRequest(BaseModel):
         except ValueError as e:
             raise ValueError("Format tanggal harus YYYY-MM-DD")
 
+# Schema untuk input API 14 hari
+class UVIndexFortnightRequest(BaseModel):
+    city: str
+    start_date: str
+
+    @validator("city")
+    def validate_city(cls, value):
+        if value not in CITY_COORDINATES:
+            raise ValueError(f"Kota tidak valid. Kota yang tersedia: {', '.join(CITY_COORDINATES.keys())}")
+        return value
+
+    @validator("start_date")
+    def validate_start_date(cls, value):
+        try:
+            date_obj = datetime.strptime(value, "%Y-%m-%d")
+            if date_obj.date() < datetime.now().date():
+                raise ValueError("Tanggal tidak boleh di masa lalu")
+            return value
+        except ValueError as e:
+            raise ValueError("Format tanggal harus YYYY-MM-DD")
+
 # Fungsi preprocessing yang lebih robust
 def preprocess_input(city: str, date: str):
     try:
@@ -126,6 +147,59 @@ async def predict_uv_index(request: UVIndexRequest):
                 "date": request.date,
                 "predicted_uv_index": round(uv_index, 2),
                 "uv_risk_level": get_uv_risk_level(uv_index)
+            }
+        }
+
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error dalam prediksi: {str(e)}")
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server")
+
+# Endpoint prediksi UV Index untuk 14 hari
+@app.post("/predict-fortnight")
+async def predict_uv_index_fortnight(request: UVIndexFortnightRequest):
+    """
+    Endpoint untuk memprediksi UV Index untuk 14 hari ke depan.
+    
+    Parameters:
+    - city: Nama kota
+    - start_date: Tanggal awal prediksi (format: YYYY-MM-DD)
+    
+    Returns:
+    - Array prediksi UV Index untuk 14 hari berturut-turut
+    """
+    try:
+        start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
+        predictions = []
+
+        # Prediksi untuk 14 hari kedepan
+        for i in range(14):
+            current_date = start_date + timedelta(days=i)
+            current_date_str = current_date.strftime("%Y-%m-%d")
+            
+            # Preprocess input untuk tanggal tersebut
+            input_scaled = preprocess_input(request.city, current_date_str)
+            
+            # Prediksi
+            prediction = model.predict(input_scaled)
+            uv_index = float(prediction[0][0])
+            
+            # Format hasil prediksi
+            predictions.append({
+                "date": current_date_str,
+                "predicted_uv_index": round(uv_index, 2),
+                "uv_risk_level": get_uv_risk_level(uv_index)
+            })
+
+        # Format response
+        return {
+            "status": "success",
+            "data": {
+                "city": request.city,
+                "coordinates": CITY_COORDINATES[request.city],
+                "total_days": 14,
+                "predictions": predictions
             }
         }
 
