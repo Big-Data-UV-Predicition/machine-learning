@@ -9,8 +9,6 @@ COPY . ./
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 
-COPY requirements.txt requirements.txt
-
 RUN pip3 istall -r requirements.txt
 
 EXPOSE 8080
