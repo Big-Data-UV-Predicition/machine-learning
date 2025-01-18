@@ -1,24 +1,15 @@
-FROM python:3.10-slim AS deps
+FROM python:3.10-slim
 
-ENV PYTHONBUFFERED=1
+# Allow statements and log messages to immediately appear in the Knative logs
+ENV PYTHONUNBUFFERED True
 
-WORKDIR /app
+# Copy local code to the container image.
+ENV APP_HOME /app
+WORKDIR $APP_HOME
+COPY . ./
 
-COPY requirements.txt ./
 
+# Install production dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.10-slim AS runner
-
-WORKDIR /app
-
-COPY --from=deps /app /app
-
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
-ENV PORT=8080
-
-EXPOSE 8080
-
-
-CMD ["python", "app.py"]
+CMD ["python", "-u", "app.py"]
