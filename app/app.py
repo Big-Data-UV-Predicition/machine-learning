@@ -1,5 +1,5 @@
 import os
-
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import joblib
 import numpy as np
 from flask import Flask, jsonify, request
