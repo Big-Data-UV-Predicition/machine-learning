@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 from datetime import datetime
+import os
+import uvicorn
 import numpy as np
 import tensorflow as tf
 import joblib
@@ -156,8 +158,8 @@ def get_status():
 # Endpoint root
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to UV Index Prediction API!",
-            "documentation": "Visit /docs to see the documentation.",
-            "project": "UV Index Prediction API",
-            "team": "Cangcing Team"
-            }
+    return {"message": "Welcome to UV Index Prediction API!"}
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
