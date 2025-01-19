@@ -8,7 +8,7 @@ This API enables users to predict UV Index categories based on provided feature 
 
 * UV Index Prediction: Leverages machine learning to predict UV Index values from feature data
 * Feature Scaling: Implements `StandardScaler` for normalizing input data before model prediction
-* Category Labels: Returns UV Index categories based on predefined classification labels
+* Category Labels: Returns UV Index categories based on predefined classification labels.
 
 ## Technology Stack
 
